@@ -3,16 +3,16 @@
 import { Shell } from "@/components/Shell";
 import {
   CircleDot,
+  Delete,
   Grid3X3,
   MicOff,
   Phone,
   PlusCircle,
   Repeat2,
   Volume2,
-  Delete,
 } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 
 const keypad = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "*", "0", "#"];
 
@@ -24,6 +24,14 @@ function formatTime(seconds: number) {
 }
 
 export default function CallPage() {
+  return (
+    <Suspense fallback={<div>Loading call...</div>}>
+      <CallScreen />
+    </Suspense>
+  );
+}
+
+function CallScreen() {
   const router = useRouter();
   const searchParams = useSearchParams();
 
