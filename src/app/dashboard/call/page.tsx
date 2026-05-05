@@ -41,13 +41,14 @@ function CallScreen() {
   const type = searchParams.get("type") || "call";
 
   const localVideoRef = useRef<HTMLVideoElement | null>(null);
+  const remoteAudioRef = useRef<HTMLAudioElement | null>(null);
   const mediaStreamRef = useRef<MediaStream | null>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
 
   const [seconds, setSeconds] = useState(0);
   const [muted, setMuted] = useState(false);
-  const [speaker, setSpeaker] = useState(false);
+  const [speaker, setSpeaker] = useState(true);
   const [hold, setHold] = useState(false);
   const [record, setRecord] = useState(false);
   const [showKeypad, setShowKeypad] = useState(false);
@@ -80,6 +81,11 @@ function CallScreen() {
           localVideoRef.current.srcObject = stream;
         }
 
+        if (remoteAudioRef.current) {
+          remoteAudioRef.current.muted = !speaker;
+          remoteAudioRef.current.volume = speaker ? 1 : 0;
+        }
+
         setCameraOn(type === "video");
       } catch (error) {
         console.error("Media permission denied:", error);
@@ -108,21 +114,24 @@ function CallScreen() {
     const stream = mediaStreamRef.current;
     if (!stream) return;
 
+    const nextMuted = !muted;
+
     stream.getAudioTracks().forEach((track) => {
-      track.enabled = muted;
+      track.enabled = !nextMuted;
     });
 
-    setMuted(!muted);
+    setMuted(nextMuted);
   }
 
   function toggleSpeaker() {
-    const video = localVideoRef.current;
+    const nextSpeaker = !speaker;
 
-    if (video) {
-      video.muted = speaker;
+    if (remoteAudioRef.current) {
+      remoteAudioRef.current.muted = !nextSpeaker;
+      remoteAudioRef.current.volume = nextSpeaker ? 1 : 0;
     }
 
-    setSpeaker(!speaker);
+    setSpeaker(nextSpeaker);
   }
 
   function toggleRecord() {
@@ -246,8 +255,8 @@ function CallScreen() {
             />
 
             <CallAction
-              icon={speaker ? <VolumeX size={22} /> : <Volume2 size={22} />}
-              label={speaker ? "Speaker Off" : "Speaker"}
+              icon={speaker ? <Volume2 size={22} /> : <VolumeX size={22} />}
+              label={speaker ? "Speaker On" : "Speaker Off"}
               active={speaker}
               onClick={toggleSpeaker}
             />
@@ -308,6 +317,8 @@ function CallScreen() {
               </div>
             </div>
           )}
+
+          <audio ref={remoteAudioRef} autoPlay />
 
           <button
             onClick={endCall}
