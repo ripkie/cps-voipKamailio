@@ -5,14 +5,16 @@ import {
   CircleDot,
   Delete,
   Grid3X3,
+  Mic,
   MicOff,
   Phone,
   PlusCircle,
-  Repeat2,
+  Video,
   Volume2,
+  VolumeX,
 } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Suspense, useEffect, useState } from "react";
+import { Suspense, useEffect, useRef, useState } from "react";
 
 const keypad = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "*", "0", "#"];
 
@@ -38,15 +40,19 @@ function CallScreen() {
   const number = searchParams.get("number") || "+62 821 9876 5432";
   const type = searchParams.get("type") || "call";
 
+  const localVideoRef = useRef<HTMLVideoElement | null>(null);
+  const mediaStreamRef = useRef<MediaStream | null>(null);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const chunksRef = useRef<Blob[]>([]);
+
   const [seconds, setSeconds] = useState(0);
   const [muted, setMuted] = useState(false);
   const [speaker, setSpeaker] = useState(false);
   const [hold, setHold] = useState(false);
   const [record, setRecord] = useState(false);
-  const [showTransfer, setShowTransfer] = useState(false);
   const [showKeypad, setShowKeypad] = useState(false);
-  const [transferNumber, setTransferNumber] = useState("");
   const [dtmfNumber, setDtmfNumber] = useState("");
+  const [cameraOn, setCameraOn] = useState(false);
 
   useEffect(() => {
     if (hold) return;
@@ -58,7 +64,124 @@ function CallScreen() {
     return () => clearInterval(timer);
   }, [hold]);
 
+  useEffect(() => {
+    async function startMedia() {
+      try {
+        stopMedia();
+
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: type === "video",
+          audio: true,
+        });
+
+        mediaStreamRef.current = stream;
+
+        if (localVideoRef.current) {
+          localVideoRef.current.srcObject = stream;
+        }
+
+        setCameraOn(type === "video");
+      } catch (error) {
+        console.error("Media permission denied:", error);
+        setCameraOn(false);
+      }
+    }
+
+    startMedia();
+
+    return () => {
+      stopMedia();
+    };
+  }, [type]);
+
+  function stopMedia() {
+    const stream = mediaStreamRef.current;
+
+    stream?.getTracks().forEach((track) => {
+      track.stop();
+    });
+
+    mediaStreamRef.current = null;
+  }
+
+  function toggleMute() {
+    const stream = mediaStreamRef.current;
+    if (!stream) return;
+
+    stream.getAudioTracks().forEach((track) => {
+      track.enabled = muted;
+    });
+
+    setMuted(!muted);
+  }
+
+  function toggleSpeaker() {
+    const video = localVideoRef.current;
+
+    if (video) {
+      video.muted = speaker;
+    }
+
+    setSpeaker(!speaker);
+  }
+
+  function toggleRecord() {
+    const stream = mediaStreamRef.current;
+    if (!stream) return;
+
+    if (!record) {
+      const recorder = new MediaRecorder(stream);
+      mediaRecorderRef.current = recorder;
+      chunksRef.current = [];
+
+      recorder.ondataavailable = (event) => {
+        if (event.data.size > 0) {
+          chunksRef.current.push(event.data);
+        }
+      };
+
+      recorder.onstop = () => {
+        const blob = new Blob(chunksRef.current, {
+          type: "video/webm",
+        });
+
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+
+        a.href = url;
+        a.download = `call-recording-${Date.now()}.webm`;
+        a.click();
+
+        URL.revokeObjectURL(url);
+      };
+
+      recorder.start();
+      setRecord(true);
+    } else {
+      mediaRecorderRef.current?.stop();
+      setRecord(false);
+    }
+  }
+
+  function switchCallMode() {
+    stopMedia();
+
+    const nextType = type === "video" ? "call" : "video";
+
+    const query = new URLSearchParams({
+      number,
+      type: nextType,
+    });
+
+    router.push(`/dashboard/call?${query.toString()}`);
+  }
+
   function endCall() {
+    if (record) {
+      mediaRecorderRef.current?.stop();
+    }
+
+    stopMedia();
     router.push("/dashboard");
   }
 
@@ -81,21 +204,52 @@ function CallScreen() {
             <p className="mt-6 font-mono text-3xl font-black">
               {formatTime(seconds)}
             </p>
+
+            {type === "video" && (
+              <div className="mt-6 grid w-full max-w-3xl gap-4 md:grid-cols-2">
+                <div className="relative overflow-hidden rounded-2xl bg-black">
+                  <video
+                    ref={localVideoRef}
+                    autoPlay
+                    muted
+                    playsInline
+                    className="h-64 w-full object-cover"
+                  />
+
+                  {!cameraOn && (
+                    <div className="absolute inset-0 flex items-center justify-center bg-black text-sm font-bold text-white/50">
+                      Menunggu izin kamera...
+                    </div>
+                  )}
+                </div>
+
+                <div className="flex h-64 items-center justify-center rounded-2xl bg-white/10">
+                  <div className="text-center">
+                    <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-[var(--color-brand-blue)] text-2xl font-black">
+                      RD
+                    </div>
+                    <p className="mt-3 text-sm font-bold text-white/60">
+                      Remote video placeholder
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
 
           <div className="mx-auto mt-8 grid max-w-3xl gap-3 sm:grid-cols-3">
             <CallAction
-              icon={<MicOff size={22} />}
+              icon={muted ? <MicOff size={22} /> : <Mic size={22} />}
               label={muted ? "Muted" : "Mute"}
               active={muted}
-              onClick={() => setMuted(!muted)}
+              onClick={toggleMute}
             />
 
             <CallAction
-              icon={<Volume2 size={22} />}
-              label={speaker ? "Speaker On" : "Speaker"}
+              icon={speaker ? <VolumeX size={22} /> : <Volume2 size={22} />}
+              label={speaker ? "Speaker Off" : "Speaker"}
               active={speaker}
-              onClick={() => setSpeaker(!speaker)}
+              onClick={toggleSpeaker}
             />
 
             <CallAction
@@ -107,16 +261,16 @@ function CallScreen() {
 
             <CallAction
               icon={<CircleDot size={22} />}
-              label={record ? "Recording" : "Record"}
+              label={record ? "Recording..." : "Record"}
               active={record}
-              onClick={() => setRecord(!record)}
+              onClick={toggleRecord}
             />
 
             <CallAction
-              icon={<Repeat2 size={22} />}
-              label="Transfer"
-              active={showTransfer}
-              onClick={() => setShowTransfer(!showTransfer)}
+              icon={type === "video" ? <Phone size={22} /> : <Video size={22} />}
+              label={type === "video" ? "Voice Call" : "Video Call"}
+              active={false}
+              onClick={switchCallMode}
             />
 
             <CallAction
@@ -126,31 +280,6 @@ function CallScreen() {
               onClick={() => setShowKeypad(!showKeypad)}
             />
           </div>
-
-          {showTransfer && (
-            <div className="mx-auto mt-5 max-w-3xl rounded-2xl bg-white/10 p-4">
-              <p className="mb-2 text-sm font-bold text-white/70">
-                Transfer ke nomor:
-              </p>
-              <div className="flex gap-3">
-                <input
-                  value={transferNumber}
-                  onChange={(e) => setTransferNumber(e.target.value)}
-                  placeholder="Contoh: 1002"
-                  className="flex-1 rounded-xl bg-white px-4 py-3 font-bold text-[var(--color-brand-navy)] outline-none"
-                />
-                <button
-                  onClick={() => {
-                    alert(`Panggilan ditransfer ke ${transferNumber}`);
-                    setShowTransfer(false);
-                  }}
-                  className="rounded-xl bg-[var(--color-brand-blue)] px-5 py-3 font-black text-white"
-                >
-                  Transfer
-                </button>
-              </div>
-            </div>
-          )}
 
           {showKeypad && (
             <div className="mx-auto mt-5 max-w-3xl rounded-2xl bg-white/10 p-4">
