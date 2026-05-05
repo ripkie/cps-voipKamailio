@@ -1,5 +1,7 @@
 "use client";
 
+import { supabase } from "@/lib/supabase";
+import { useEffect, useState } from "react";
 import { Shell } from "@/components/Shell";
 import {
   ChevronDown,
@@ -7,7 +9,6 @@ import {
   CircleCheck,
   CircleX,
 } from "lucide-react";
-import { useEffect, useState } from "react";
 
 type VoipUser = {
   id?: string;
@@ -17,45 +18,14 @@ type VoipUser = {
   sip_domain?: string;
 };
 
-const mockAccounts = [
-  {
-    name: "Farras Digidaw",
-    phone: "+62 812 3456 7890",
-    extension: "1001",
-    voip: "192.0.0.0",
-    status: "Online",
-    color: "FD",
-  },
-  {
-    name: "Kanzler Sosis",
-    phone: "+62 812 1111 2222",
-    extension: "1004",
-    voip: "192.0.0.4",
-    status: "Offline",
-    color: "KS",
-  },
-  {
-    name: "Ray Kicaw",
-    phone: "+62 812 2222 3333",
-    extension: "1005",
-    voip: "192.0.0.5",
-    status: "Online",
-    color: "RK",
-  },
-  {
-    name: "Nora Ihiy",
-    phone: "+62 812 3333 4444",
-    extension: "1006",
-    voip: "192.0.0.6",
-    status: "Online",
-    color: "NI",
-  },
-];
-
 export default function AboutPage() {
   const [user, setUser] = useState<VoipUser | null>(null);
+  const [accounts, setAccounts] = useState<any[]>([]);
   const [openIndex, setOpenIndex] = useState(0);
 
+  // =========================
+  // GET LOGGED-IN USER
+  // =========================
   useEffect(() => {
     const storedUser = localStorage.getItem("voip_user");
 
@@ -64,10 +34,49 @@ export default function AboutPage() {
     }
   }, []);
 
+  // =========================
+  // FETCH ALL USERS FROM SUPABASE
+  // =========================
+  useEffect(() => {
+    async function fetchUsers() {
+      const { data, error } = await supabase
+        .from("users")
+        .select("*");
+
+      if (error) {
+        console.error("Error fetch users:", error);
+        return;
+      }
+
+      const mapped = (data || []).map((u) => ({
+        name: u.name,
+        phone: u.phone_number,
+        extension: u.sip_username,
+        voip: u.sip_domain,
+        status: "Online", // sementara (belum realtime)
+        color: u.name
+          ? u.name
+              .split(" ")
+              .map((n: string) => n[0])
+              .join("")
+              .slice(0, 2)
+              .toUpperCase()
+          : "US",
+      }));
+
+      setAccounts(mapped);
+    }
+
+    fetchUsers();
+  }, []);
+
+  // =========================
+  // ACTIVE USER (UNTUK HEADER)
+  // =========================
   const activeUser = {
-    name: user?.name || "Farras",
-    phone: user?.phone_number || "+62 812 3456 7890",
-    extension: user?.sip_username || "1001",
+    name: user?.name || "Unknown",
+    phone: user?.phone_number || "-",
+    extension: user?.sip_username || "-",
     server: user?.sip_domain || "Kamailio",
   };
 
@@ -128,7 +137,7 @@ export default function AboutPage() {
 
         <InfoSection title="Detail Akun">
           <div className="divide-y divide-slate-200">
-            {mockAccounts.map((account, index) => {
+            {accounts.map((account, index) => {
               const isOpen = openIndex === index;
               const online = account.status === "Online";
 
@@ -139,12 +148,12 @@ export default function AboutPage() {
                     className="flex w-full items-center justify-between"
                   >
                     <div className="flex items-center gap-4">
-                      <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[var(--color-brand-blue)] text-sm font-black text-white">
+                      <div className="flex h-10 w-10 items-center justify-center rounded-full bg-brand-blue text-sm font-black text-white">
                         {account.color}
                       </div>
 
                       <div className="text-left">
-                        <p className="font-black text-[var(--color-brand-navy)]">
+                        <p className="font-black text-brand-navy">
                           {account.name}
                         </p>
                         <p className="text-sm text-slate-500">
@@ -198,7 +207,7 @@ function InfoSection({
 }) {
   return (
     <div className="mt-8 overflow-hidden rounded-2xl border border-slate-300 bg-white">
-      <div className="bg-[var(--color-brand-navy)] px-6 py-4">
+      <div className="bg-brand-navy px-6 py-4">
         <h2 className="text-lg font-black text-white">{title}</h2>
       </div>
 
@@ -222,7 +231,7 @@ function InfoRow({
 }) {
   return (
     <div className="grid grid-cols-[180px_1fr] border-b border-slate-200 px-6 py-3 text-sm last:border-b-0">
-      <p className="font-black text-[var(--color-brand-navy)]">{label}</p>
+      <p className="font-black text-brand-navy">{label}</p>
       <p
         className={`text-right ${success
           ? "font-black text-green-500"
@@ -254,12 +263,12 @@ function Feature({
 }) {
   return (
     <div className="flex gap-4 border-b border-slate-200 px-6 py-4 last:border-b-0">
-      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[var(--color-brand-navy)] text-sm font-black text-white">
+      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-brand-navy text-sm font-black text-white">
         {number}
       </div>
 
       <div>
-        <p className="font-black text-[var(--color-brand-navy)]">{title}</p>
+        <p className="font-black text-brand-navy">{title}</p>
         <p className="mt-1 text-sm text-slate-500">{text}</p>
       </div>
     </div>
