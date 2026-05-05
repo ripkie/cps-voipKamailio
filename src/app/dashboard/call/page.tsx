@@ -1,5 +1,5 @@
 "use client";
-
+import { supabase } from "@/lib/supabase";
 import { Shell } from "@/components/Shell";
 import {
   CircleDot,
@@ -34,9 +34,10 @@ export default function CallPage() {
 }
 
 function CallScreen() {
+  const hasCreated = useRef(false);
   const router = useRouter();
   const searchParams = useSearchParams();
-
+  const [callId, setCallId] = useState<string | null>(null);
   const number = searchParams.get("number") || "+62 821 9876 5432";
   const type = searchParams.get("type") || "call";
 
@@ -56,14 +57,14 @@ function CallScreen() {
   const [cameraOn, setCameraOn] = useState(false);
 
   useEffect(() => {
-    if (hold) return;
+    if (hold || !callId) return;
 
     const timer = setInterval(() => {
       setSeconds((prev) => prev + 1);
     }, 1000);
 
     return () => clearInterval(timer);
-  }, [hold]);
+  }, [hold, callId]);
 
   useEffect(() => {
     async function startMedia() {
@@ -100,6 +101,63 @@ function CallScreen() {
     };
   }, [type]);
 
+  useEffect(() => {
+  if (hasCreated.current) return; // 🚫 cegah double insert
+    hasCreated.current = true;
+    
+  async function createCall() {
+    const user = JSON.parse(localStorage.getItem("voip_user") || "{}");
+
+    if (!user?.id) return;
+
+    const { data, error } = await supabase
+      .from("calls")
+      .insert({
+        user_id: user.id,
+        destination_number: number,
+        call_type: type === "video" ? "video" : "voice",
+        direction: "outgoing",
+        status: "calling",
+        started_at: new Date().toISOString(),
+      })
+      .select()
+      .single();
+
+    if (!error && data) {
+      setCallId(data.id);
+    }
+  }
+
+  createCall();
+}, []);
+useEffect(() => {
+  if (!callId) return;
+
+  const t = setTimeout(() => {
+    supabase
+      .from("calls")
+      .update({ status: "ringing" })
+      .eq("id", callId);
+  }, 2000);
+
+  return () => clearTimeout(t);
+}, [callId]);
+
+useEffect(() => {
+  if (!callId) return;
+
+  const t = setTimeout(() => {
+    supabase
+      .from("calls")
+      .update({
+        status: "in_call",
+        answered_at: new Date().toISOString(),
+      })
+      .eq("id", callId);
+  }, 4000);
+
+  return () => clearTimeout(t);
+}, [callId]);
   function stopMedia() {
     const stream = mediaStreamRef.current;
 
@@ -185,21 +243,30 @@ function CallScreen() {
     router.push(`/dashboard/call?${query.toString()}`);
   }
 
-  function endCall() {
-    if (record) {
-      mediaRecorderRef.current?.stop();
-    }
-
-    stopMedia();
-    router.push("/dashboard");
+ async function endCall() {
+  if (callId) {
+    await supabase
+      .from("calls")
+      .update({
+        status: "ended",
+        result: seconds === 0 ? "missed" : "ended",
+        ended_at: new Date().toISOString(),
+        duration: seconds,
+      })
+      .eq("id", callId);
   }
+
+  sessionStorage.removeItem("active_call_created"); 
+
+  router.push("/dashboard");
+}
 
   return (
     <Shell>
       <section className="flex min-h-[calc(100vh-150px)] items-center justify-center px-5 py-10">
-        <div className="w-full max-w-5xl rounded-[1.75rem] bg-[var(--color-brand-navy)] px-8 py-8 text-white shadow-2xl shadow-blue-950/20">
+        <div className="w-full max-w-5xl rounded-[1.75rem] bg-brand-navy px-8 py-8 text-white shadow-2xl shadow-blue-950/20">
           <div className="flex flex-col items-center">
-            <div className="flex h-24 w-24 items-center justify-center rounded-full bg-[var(--color-brand-blue)] text-4xl font-black text-white">
+            <div className="flex h-24 w-24 items-center justify-center rounded-full bg-brand-blue text-4xl font-black text-white">
               RD
             </div>
 
@@ -234,7 +301,7 @@ function CallScreen() {
 
                 <div className="flex h-64 items-center justify-center rounded-2xl bg-white/10">
                   <div className="text-center">
-                    <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-[var(--color-brand-blue)] text-2xl font-black">
+                    <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-brand-blue text-2xl font-black">
                       RD
                     </div>
                     <p className="mt-3 text-sm font-bold text-white/60">
@@ -348,7 +415,7 @@ function CallAction({
     <button
       onClick={onClick}
       className={`rounded-lg px-5 py-4 text-sm font-bold transition ${active
-          ? "bg-white text-[var(--color-brand-navy)] ring-4 ring-[var(--color-brand-blue)]"
+          ? "bg-white text-brand-navy ring-4 ring-brand-blue"
           : "bg-white/15 text-white hover:bg-white/25"
         }`}
     >
