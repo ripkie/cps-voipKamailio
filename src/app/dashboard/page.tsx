@@ -148,6 +148,7 @@ function InfoBox({ label, value }: { label: string; value: string }) {
     <div className="rounded-xl bg-[#d7deef] px-3 py-3">
       <p className="text-sm font-bold text-slate-400">{label}</p>
       <p className="text-base font-black text-black">{value}</p>
+      <p></p>
     </div>
   );
 }
