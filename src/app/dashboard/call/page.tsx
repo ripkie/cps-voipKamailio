@@ -1,6 +1,8 @@
 "use client";
 import { supabase } from "@/lib/supabase";
 import { Shell } from "@/components/Shell";
+import { createSipClient, getUserAgent } from "@/lib/sipClient";
+import { Inviter, UserAgent } from "sip.js";
 import {
   CircleDot,
   Delete,
@@ -55,7 +57,7 @@ function CallScreen() {
   const [showKeypad, setShowKeypad] = useState(false);
   const [dtmfNumber, setDtmfNumber] = useState("");
   const [cameraOn, setCameraOn] = useState(false);
-
+  
   useEffect(() => {
     if (hold || !callId) return;
 
@@ -102,7 +104,7 @@ function CallScreen() {
   }, [type]);
 
   useEffect(() => {
-  if (hasCreated.current) return; // 🚫 cegah double insert
+  if (hasCreated.current) return;
     hasCreated.current = true;
     
   async function createCall() {

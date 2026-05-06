@@ -32,7 +32,7 @@ export default function LoginPage() {
         return;
       }
 
-      // simpan user ke localStorage
+
       localStorage.setItem("voip_user", JSON.stringify(data.user));
 
       router.push("/dashboard");
@@ -47,7 +47,7 @@ export default function LoginPage() {
     <main className="grid-bg flex min-h-screen items-center justify-center px-5">
       <div className="grid w-full max-w-5xl overflow-hidden rounded-[2.5rem] bg-white shadow-2xl shadow-blue-950/10 lg:grid-cols-2">
         
-        {/* LEFT SIDE (TIDAK DIUBAH) */}
+
         <section className="glass-dark noise relative hidden min-h-155 flex-col justify-between overflow-hidden bg-brand-navy p-10 text-white lg:flex">
           <div className="relative z-10">
             <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-white/10">
@@ -67,7 +67,7 @@ export default function LoginPage() {
           </div>
         </section>
 
-        {/* RIGHT SIDE */}
+
         <section className="p-8 md:p-12">
           <div className="mx-auto max-w-md">
             <p className="text-sm font-bold uppercase tracking-[0.2em] text-brand-blue">
@@ -78,7 +78,7 @@ export default function LoginPage() {
               Masukkan nomor handphone yang sudah terdaftar di sistem.
             </p>
 
-            {/* 🔥 FORM SUDAH AKTIF */}
+  
             <form onSubmit={handleLogin} className="mt-10 space-y-5">
               <div>
                 <label className="text-sm font-bold text-brand-navy">
@@ -92,7 +92,7 @@ export default function LoginPage() {
                 />
               </div>
 
-              {/* 🔴 INI YANG DIGANTI: LINK → BUTTON */}
+
               <button
                 type="submit"
                 disabled={loading}

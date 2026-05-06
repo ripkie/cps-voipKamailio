@@ -47,7 +47,7 @@ export default function CallLogPage() {
   const [activeTab, setActiveTab] = useState<CallType>("all");
   const [callLogs, setCallLogs] = useState<CallLog[]>([]);
 
-  // 🔥 FETCH DATA DARI SUPABASE
+
   useEffect(() => {
     async function fetchLogs() {
       const user = JSON.parse(localStorage.getItem("voip_user") || "{}");
@@ -82,7 +82,7 @@ export default function CallLogPage() {
     fetchLogs();
   }, []);
 
-  // 🔥 FILTER LOGIC
+
   const filteredLogs = useMemo(() => {
     if (activeTab === "all") return callLogs;
 
