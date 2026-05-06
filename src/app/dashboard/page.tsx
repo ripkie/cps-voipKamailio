@@ -4,6 +4,7 @@ import { Shell } from "@/components/Shell";
 import { Phone, User, Video, Delete } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
+import JsSIP from "jssip";
 
 const keys = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "*", "0", "#"];
 
@@ -12,9 +13,10 @@ type VoipUser = {
   phone_number?: string;
   sip_username?: string;
   sip_domain?: string;
+  sip_password?: string;
 };
 
-// 🔥 formatter nomor (tiap 4 digit)
+
 function formatPhone(num: string) {
   const cleaned = num.replace(/\D/g, "");
   return cleaned.replace(/(\d{4})(?=\d)/g, "$1-");
@@ -22,22 +24,50 @@ function formatPhone(num: string) {
 
 export default function DashboardPage() {
   const router = useRouter();
-  const [number, setNumber] = useState(""); // RAW (tanpa strip)
+  const [number, setNumber] = useState("");
   const [user, setUser] = useState<VoipUser | null>(null);
 
   useEffect(() => {
-    const stored = localStorage.getItem("voip_user");
-    if (stored) {
-      setUser(JSON.parse(stored));
-    }
-  }, []);
+  const stored = localStorage.getItem("voip_user");
+
+  if (stored) {
+    const parsedUser = JSON.parse(stored);
+
+    setUser(parsedUser);
+
+    const socket = new JsSIP.WebSocketInterface(
+      "ws://104.208.67.198:8080/ws"
+    );
+
+    const configuration = {
+      sockets: [socket],
+      uri: `sip:${parsedUser.sip_username}@${parsedUser.sip_domain}`,
+      password: parsedUser.sip_password,
+    };
+
+    const ua = new JsSIP.UA(configuration);
+
+    ua.start();
+
+    ua.on("registered", () => {
+      console.log("SIP REGISTERED");
+    });
+
+    ua.on("registrationFailed", (e: any) => {
+      console.log("REGISTER FAILED", e);
+    });
+  }
+}, []);
 
   function goToCall(type: "call" | "video") {
     const query = new URLSearchParams({
-      number, // tetap RAW
+      number,
       type,
     });
-
+    if (!number) {
+      alert("Masukkan nomor tujuan terlebih dahulu");
+      return;
+    }
     router.push(`/dashboard/call?${query.toString()}`);
   }
 
@@ -53,7 +83,7 @@ export default function DashboardPage() {
       <section className="mx-auto max-w-7xl px-5 py-10">
         <div className="grid gap-8 lg:grid-cols-[0.95fr_1.05fr]">
           
-          {/* LEFT */}
+
           <div className="rounded-2xl bg-white p-6 shadow-xl shadow-blue-950/5">
             <div className="flex items-center gap-4">
               <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-brand-navy text-white">
@@ -78,14 +108,14 @@ export default function DashboardPage() {
             </div>
           </div>
 
-          {/* RIGHT */}
+
           <div className="rounded-2xl bg-white p-0 shadow-xl shadow-blue-950/5">
             <div className="rounded-t-2xl bg-brand-navy px-5 py-3">
               <h2 className="text-2xl font-black text-white">DialPad</h2>
             </div>
 
             <div className="p-6">
-              {/* 🔥 DISPLAY NUMBER */}
+
               <div
                 className={`mb-5 rounded-xl bg-[#d7deef] px-5 py-3 text-center text-2xl font-black tracking-wide ${
                   number ? "text-black" : "text-gray-400"
@@ -107,7 +137,7 @@ export default function DashboardPage() {
                   </button>
                 ))}
 
-                {/* DELETE */}
+
                 <button
                   onClick={() =>
                     setNumber((prev) =>
@@ -119,7 +149,7 @@ export default function DashboardPage() {
                   <Delete size={30} />
                 </button>
 
-                {/* CALL */}
+
                 <button
                   onClick={() => goToCall("call")}
                   className="flex items-center justify-center rounded-xl bg-[#d7deef] py-3 text-black transition hover:brightness-95"
@@ -127,7 +157,7 @@ export default function DashboardPage() {
                   <Phone size={30} />
                 </button>
 
-                {/* VIDEO */}
+
                 <button
                   onClick={() => goToCall("video")}
                   className="flex items-center justify-center rounded-xl bg-[#d7deef] py-3 text-black transition hover:brightness-95"

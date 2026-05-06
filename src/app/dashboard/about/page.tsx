@@ -23,9 +23,7 @@ export default function AboutPage() {
   const [accounts, setAccounts] = useState<any[]>([]);
   const [openIndex, setOpenIndex] = useState(0);
 
-  // =========================
-  // GET LOGGED-IN USER
-  // =========================
+
   useEffect(() => {
     const storedUser = localStorage.getItem("voip_user");
 
@@ -34,9 +32,7 @@ export default function AboutPage() {
     }
   }, []);
 
-  // =========================
-  // FETCH ALL USERS FROM SUPABASE
-  // =========================
+
   useEffect(() => {
     async function fetchUsers() {
       const { data, error } = await supabase
@@ -53,7 +49,7 @@ export default function AboutPage() {
         phone: u.phone_number,
         extension: u.sip_username,
         voip: u.sip_domain,
-        status: "Online", // sementara (belum realtime)
+        status: "Online", 
         color: u.name
           ? u.name
               .split(" ")
@@ -70,9 +66,7 @@ export default function AboutPage() {
     fetchUsers();
   }, []);
 
-  // =========================
-  // ACTIVE USER (UNTUK HEADER)
-  // =========================
+ 
   const activeUser = {
     name: user?.name || "Unknown",
     phone: user?.phone_number || "-",
