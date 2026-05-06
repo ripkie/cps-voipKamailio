@@ -3,8 +3,9 @@
 import { Shell } from "@/components/Shell";
 import { Phone, User, Video, Delete } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import JsSIP from "jssip";
+import { setSession } from "@/lib/callSession";
 
 const keys = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "*", "0", "#"];
 
@@ -26,6 +27,7 @@ export default function DashboardPage() {
   const router = useRouter();
   const [number, setNumber] = useState("");
   const [user, setUser] = useState<VoipUser | null>(null);
+  const uaRef = useRef<any>(null);
 
   useEffect(() => {
   const stored = localStorage.getItem("voip_user");
@@ -47,15 +49,34 @@ export default function DashboardPage() {
 
     const ua = new JsSIP.UA(configuration);
 
+    uaRef.current = ua;
+
     ua.start();
 
-    ua.on("registered", () => {
+     ua.on("registered", () => {
       console.log("SIP REGISTERED");
     });
 
-    ua.on("registrationFailed", (e: any) => {
+     ua.on("registrationFailed", (e: any) => {
       console.log("REGISTER FAILED", e);
     });
+
+    ua.on("newRTCSession", (data: any) => {
+    console.log("INCOMING CALL");
+
+    const session = data.session;
+
+    if (session.direction === "incoming") {
+      console.log("INCOMING CALL");
+
+      setSession(session);
+
+      const caller = session.remote_identity.uri.user;
+
+    router.push(`/dashboard/call?incoming=true&caller=${caller}`
+    );
+}
+});
   }
 }, []);
 
@@ -70,6 +91,58 @@ export default function DashboardPage() {
     }
     router.push(`/dashboard/call?${query.toString()}`);
   }
+
+  async function makeCall(target: string) {
+
+  if (!uaRef.current) {
+    alert("SIP belum connect");
+    return;
+  }
+
+  const cleanTarget = target.replace(/\D/g, "");
+
+  try {
+
+    const res = await fetch("/api/get-sip", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        phoneNumber: cleanTarget,
+      }),
+    });
+
+    let data;
+
+    try {
+      data = await res.json();
+    } catch {
+      const text = await res.text();
+      console.log("SERVER RESPONSE:", text);
+      return;
+    }
+
+    if (!res.ok) {
+      alert(data.message);
+      return;
+    }
+
+    const sipUri = `sip:${data.sip_username}@${data.sip_domain}`;
+
+    uaRef.current.call(sipUri, {
+      mediaConstraints: {
+        audio: true,
+        video: false,
+      },
+    });
+
+    console.log("CALLING", sipUri);
+
+  } catch (err) {
+    console.log(err);
+  }
+}
 
   const activeUser = {
     name: user?.name || "Unknown",
@@ -151,7 +224,7 @@ export default function DashboardPage() {
 
 
                 <button
-                  onClick={() => goToCall("call")}
+                  onClick={() => makeCall(number)}
                   className="flex items-center justify-center rounded-xl bg-[#d7deef] py-3 text-black transition hover:brightness-95"
                 >
                   <Phone size={30} />

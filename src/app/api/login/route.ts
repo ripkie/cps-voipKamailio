@@ -14,13 +14,20 @@ export async function POST(request: Request) {
 
     const { data: user, error } = await supabase
       .from("users")
-      .select("id, phone_number, name, sip_username, sip_domain, sip_password")
+      .select(`
+        id,
+        phone_number,
+        name,
+        sip_username,
+        sip_domain,
+        sip_password
+      `)
       .eq("phone_number", phoneNumber)
       .single();
 
     if (error || !user) {
       return NextResponse.json(
-        { message: "Nomor tidak terdaftar di server VoIP Kamailio" },
+        { message: "Nomor tidak terdaftar" },
         { status: 401 }
       );
     }
@@ -29,9 +36,10 @@ export async function POST(request: Request) {
       message: "Login berhasil",
       user,
     });
+
   } catch {
     return NextResponse.json(
-      { message: "Terjadi kesalahan server" },
+      { message: "Server error" },
       { status: 500 }
     );
   }
