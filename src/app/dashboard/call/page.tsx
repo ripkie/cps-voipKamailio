@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useRef, useState } from "react";
+import { getSession } from "@/lib/callSession";
 
 const keypad = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "*", "0", "#"];
 
@@ -40,6 +41,7 @@ function CallScreen() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [callId, setCallId] = useState<string | null>(null);
+  const [callStatus, setCallStatus] = useState("Calling");
   const number = searchParams.get("number") || "+62 821 9876 5432";
   const type = searchParams.get("type") || "call";
 
@@ -57,16 +59,83 @@ function CallScreen() {
   const [showKeypad, setShowKeypad] = useState(false);
   const [dtmfNumber, setDtmfNumber] = useState("");
   const [cameraOn, setCameraOn] = useState(false);
-  
-  useEffect(() => {
-    if (hold || !callId) return;
 
-    const timer = setInterval(() => {
+  useEffect(() => {
+
+  const session = getSession();
+
+  if (!session) return;
+
+  session.on("progress", () => {
+    console.log("RINGING");
+    setCallStatus("Ringing");
+  });
+
+  session.on("accepted", () => {
+    console.log("IN CALL");
+
+    setCallStatus("In Call");
+    setSeconds(0);
+  });
+
+  session.on("ended", () => {
+    console.log("CALL ENDED");
+
+    setCallStatus("Call Ended");
+  });
+
+  session.on("failed", () => {
+    console.log("CALL FAILED");
+
+    setCallStatus("Call Ended");
+  });
+
+}, []);
+  
+  function answerCall() {
+  const session = getSession();
+
+  if (!session) return;
+
+  if (session.isInProgress()) {
+
+    setSeconds(0);
+    setCallStatus("In Call");
+
+    session.answer({
+      mediaConstraints: {
+        audio: true,
+        video: false,
+      },
+    });
+
+    console.log("CALL ANSWERED");
+  }
+}
+
+function rejectCall() {
+  const session = getSession();
+
+  if (!session) return;
+
+  session.terminate();
+
+  console.log("CALL REJECTED");
+
+  router.push("/dashboard");
+}
+
+  useEffect(() => {
+  let interval: any;
+
+  if (callStatus === "In Call") {
+    interval = setInterval(() => {
       setSeconds((prev) => prev + 1);
     }, 1000);
+  }
 
-    return () => clearInterval(timer);
-  }, [hold, callId]);
+  return () => clearInterval(interval);
+}, [callStatus]);
 
   useEffect(() => {
     async function startMedia() {
@@ -132,34 +201,7 @@ function CallScreen() {
 
   createCall();
 }, []);
-useEffect(() => {
-  if (!callId) return;
 
-  const t = setTimeout(() => {
-    supabase
-      .from("calls")
-      .update({ status: "ringing" })
-      .eq("id", callId);
-  }, 2000);
-
-  return () => clearTimeout(t);
-}, [callId]);
-
-useEffect(() => {
-  if (!callId) return;
-
-  const t = setTimeout(() => {
-    supabase
-      .from("calls")
-      .update({
-        status: "in_call",
-        answered_at: new Date().toISOString(),
-      })
-      .eq("id", callId);
-  }, 4000);
-
-  return () => clearTimeout(t);
-}, [callId]);
   function stopMedia() {
     const stream = mediaStreamRef.current;
 
@@ -246,6 +288,13 @@ useEffect(() => {
   }
 
  async function endCall() {
+
+  const session = getSession();
+
+  if (session) {
+    session.terminate();
+  }
+
   if (callId) {
     await supabase
       .from("calls")
@@ -258,7 +307,7 @@ useEffect(() => {
       .eq("id", callId);
   }
 
-  sessionStorage.removeItem("active_call_created"); 
+  sessionStorage.removeItem("active_call_created");
 
   router.push("/dashboard");
 }
@@ -273,6 +322,18 @@ useEffect(() => {
             </div>
 
             <h1 className="mt-6 text-xl font-black">{number}</h1>
+
+            {searchParams.get("incoming") === "true" && (
+            <div className="mt-5 flex gap-4">
+            <button onClick={answerCall} className="rounded-full bg-green-500 px-6 py-3 font-bold text-white">
+              Answer
+            </button>
+
+            <button onClick={rejectCall} className="rounded-full bg-red-500 px-6 py-3 font-bold text-white">
+              Reject
+            </button>
+            </div>
+)}
 
             <p className="mt-1 text-xs font-bold uppercase tracking-wide text-white/30">
               {hold ? "ON HOLD" : "IN CALL"} · via Kamailio SIP ·{" "}
